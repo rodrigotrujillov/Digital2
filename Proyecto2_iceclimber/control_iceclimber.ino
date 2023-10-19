@@ -3,6 +3,7 @@ const int abajoPin = 12;
 const int izquierdaPin = 14;
 const int derechaPin = 27;
 const int accionPin = 26;
+const int accion2Pin = 25;
 
 const unsigned long debounceDelay = 50; 
 const unsigned long serialInterval = 100; // 1 second
@@ -12,24 +13,28 @@ int abajoState = HIGH;
 int izquierdaState = HIGH; 
 int derechaState = HIGH;
 int accionState = HIGH;
+int accion2State = HIGH;
 
 int lastArribaState = HIGH;
 int lastAbajoState = HIGH;
 int lastIzquierdaState = HIGH;
 int lastDerechaState = HIGH;
 int lastAccionState = HIGH;
+int lastAccion2State = HIGH;
 
 unsigned long lastDebounceTime1 = 0; 
 unsigned long lastDebounceTime2 = 0;
 unsigned long lastDebounceTime3 = 0; 
 unsigned long lastDebounceTime4 = 0;
 unsigned long lastDebounceTime5 = 0;
+unsigned long lastDebounceTime6 = 0;
 
 unsigned long lastSerialSendTime1 = 0;
 unsigned long lastSerialSendTime2 = 0;
 unsigned long lastSerialSendTime3 = 0;
 unsigned long lastSerialSendTime4 = 0;
 unsigned long lastSerialSendTime5 = 0;
+unsigned long lastSerialSendTime6 = 0;
 
 void setup() {
   pinMode(arribaPin, INPUT_PULLUP);
@@ -37,6 +42,8 @@ void setup() {
   pinMode(izquierdaPin, INPUT_PULLUP);
   pinMode(derechaPin, INPUT_PULLUP);
   pinMode(accionPin, INPUT_PULLUP);
+  pinMode(accion2Pin, INPUT_PULLUP);
+
   Serial.begin(9600);
 }
 
@@ -46,6 +53,7 @@ void loop() {
   int reading3 = digitalRead(izquierdaPin);
   int reading4 = digitalRead(derechaPin);
   int reading5 = digitalRead(accionPin);
+  int reading6 = digitalRead(accion2Pin);
 
   if (reading1 != lastArribaState) {
     lastDebounceTime1 = millis(); 
@@ -61,6 +69,9 @@ void loop() {
   }
   if (reading5 != lastAccionState) {
     lastDebounceTime5 = millis(); 
+  }
+  if (reading6 != lastAccion2State) {
+    lastDebounceTime6 = millis(); 
   }
 
   if ((millis() - lastDebounceTime1) > debounceDelay) {
@@ -123,6 +134,18 @@ void loop() {
     }
   }
 
+  if ((millis() - lastDebounceTime6) > debounceDelay) {
+    if (reading6 != accion2State) {
+      accion2State = reading6;
+      if (accion2State == LOW) {
+        lastSerialSendTime6 = millis(); 
+        Serial.write(60);
+      } else if (lastAccion2State == LOW) {
+        Serial.write(06); 
+      }
+    }
+  }
+
   // Chequear si volvemos a enviar un serial
   if (arribaState == LOW && (millis() - lastSerialSendTime1) >= serialInterval) {
     Serial.write(10);
@@ -144,10 +167,15 @@ void loop() {
     Serial.write(50);
     lastSerialSendTime5 = millis();
   }
+  if (accion2State == LOW && (millis() - lastSerialSendTime6) >= serialInterval) {
+    Serial.write(60);
+    lastSerialSendTime6 = millis();
+  }
 
   lastArribaState = reading1;
   lastAbajoState = reading2;
   lastIzquierdaState = reading3;
   lastDerechaState = reading4;
   lastAccionState = reading5;
+  lastAccion2State = reading6;
 }
