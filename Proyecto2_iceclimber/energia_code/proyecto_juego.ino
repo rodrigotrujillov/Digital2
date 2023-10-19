@@ -34,7 +34,9 @@
 #define LCD_RD PE_1
 int DPINS[] = {PB_0, PB_1, PB_2, PB_3, PB_4, PB_5, PB_6, PB_7};
 //***************************************************************************************************************************************
+//
 // Functions Prototypes
+//
 //***************************************************************************************************************************************
 void LCD_Init(void);
 void LCD_CMD(uint8_t cmd);
@@ -51,6 +53,8 @@ void LCD_Bitmap(unsigned int x, unsigned int y, unsigned int width, unsigned int
 void LCD_Sprite(int x, int y, int width, int height, unsigned char bitmap[], int columns, int index, char flip, char offset);
 
 //***************************************************************************************************************************************
+
+int inByte;
 
 // IMAGENES O ANIMACIONES ------------------------------------------------------
 
@@ -81,12 +85,17 @@ File root;
 uint8_t maps[1000];
 uint8_t contador = 0;
 
-// BANDERAS DE ESTADOS ----------------------------------------------------------
-int banderaPantalla = 0; // bandera para controlar en que pantalla estoy
-int banderaMartillito = 0; // bandera para controlar posicion de martillito
-int banderaInGame = 0; // bandera para saber si nos encontramos jugando y no en el menu
-int banderaUnJugador = 0; // bandera para saber si estamos jugando como un solo jugador
-int banderaDosJugador = 0; // bandera para saber si estamos jugandos como dos jugadores 
+// DATOS DE MAPA ---------------------------------------------------------------
+int map_border_left = 73; // borde mapa izquierda
+int map_border_right = 230; // borde mapa derecha
+int map_floor = 190; // borde del piso
+int map_floor2 = 190;
+
+
+bool LimiteDerechaIC_1 = false; // limite izquierda ice climber 1
+bool LimiteIzquierdaIC_1 = false; // limite izquierda ice climber 2
+bool LimiteDerechaIC_2 = false; // limite izquierda ice climber 1
+bool LimiteIzquierdaIC_2 = false; // limite izquierda ice climber 2
 
 // DATOS DE JUGADORES -----------------------------------------------------------
 int IceClimber1_x = 145; // posicion inicial en X de ice climber 1
@@ -99,53 +108,55 @@ int IceClimber2_y = 190; // posiicion inicial en Y de ice climber 2
 int IceClimber2_width = 16; // ancho ice climber 2
 int IceClimber2_height = 24; // altura ice climber 2
 
-// DATOS DE ENEMIGOS ------------------------------------------------------------
-int Dino_width = 35; // ancho dino
-int Dino_height = 20; // altura dino
-int Bug_width = 35; // ancho bug
-int Bug_height = 25; // altura bug
-int Bird_width = 20; // ancho bird
-int Bird_height = 20; // altura bird 
-int iceman_width = 16; // ancho iceman
-int iceman_height = 16; // altura iceman
+int jumpHeight; // altura de salto;
+int jumpHeight2;
 
-int enemigo_x[15] = {80, 104, 153, 201, 250, 56, 105, 154, 202, 251, 56, 105, 154, 202, 251}; // posiciones X de enemigos (prueba)
-int enemigo_y[15] = {35, 35, 35, 35, 35, 71, 71, 71, 71, 71, 104, 104, 104, 104, 104}; // posicion Y de enemigos (prueba)
-int enemigo_index[15] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}; // index enemigos
 
-bool enemies_move = true; // los enemigos se estan moviendo?
+// BANDERAS DE ESTADOS ----------------------------------------------------------
+int banderaPantalla = 0;
+int banderaMartillito = 0;
+int modojuego = 0;
+bool unJugador = false;
+bool dosJugador = false;
+bool inGame = false;
 
-// DATOS DE MAPA ---------------------------------------------------------------
-int map_border_left = 73; // borde mapa izquierda
-int map_border_right = 230; // borde mapa derecha
-int map_floor = 190; // borde del piso
+bool onAir = false;
+bool onGround = false;
+bool jumping = false;
+bool isFloor = false;
+bool walkingRight = false;
+bool walkingLeft = false;
+bool colision = false;
 
-bool LimiteIzquierdaIC_1 = false; // limite izquierda ice climber 1
-bool LimiteIzquierdaIC_2 = false; // limite izquierda ice climber 2
-bool LimiteDerechaIC_1 = false; // limite derecha ice climber 1
-bool LimiteDerechaIC_2 = false; // limite derecha ice climber 2
-bool LimiteAbajoIC_1 = false; // limite de piso ice climber 1
-bool LimiteAbajoIC_2 = false; // limite de piso ice climber 2
+bool onAir2 = false;
+bool onGround2 = false;
+bool jumping2 = false;
+bool isFloor2 = false;
+bool walkingRight2 = false;
+bool walkingLeft2 = false;
+
 
 // BLOQUES ---------------------------------------------------------------------
-int block_position_x = 64; 
-int block_position_y[4] = {168, 120, 72, 24};
+int block_position_x = 64;
+int block_position_y[5] = {216, 168, 120, 72, 24};
 int block_random_y[4] = {176, 128, 80, 32};
 int blocks = 12;
 
-// OTROS -----------------------------------------------------------------------
-int inByte; // byte que recibimos del ESP
+int blockx = 200;
+int blocky = 176;
+int block_w = 8;
+int block_h = 8;
 
-int jumpHeight = 20;
-bool isJumping = false;
-int jumpCounter = 0;
-
-bool collision1 = false; // colision 1
-bool collision2 = false; // colision 2
+int set_blocks_green[24];
+int set_slabes_green[24];
+int set_blocks_brown[24];
+int set_blocks_x_index = 0;
 
 
 //***************************************************************************************************************************************
+//
 // Inicialización
+//
 //***************************************************************************************************************************************
 void setup() {
   SysCtlClockSet(SYSCTL_SYSDIV_2_5 | SYSCTL_USE_PLL | SYSCTL_OSC_MAIN | SYSCTL_XTAL_16MHZ);
@@ -164,16 +175,15 @@ void setup() {
     return;
   }
   Serial.println("initialization done.");
-
-  std::srand(1234); // para datos random
-
 }
 //***************************************************************************************************************************************
+//
 // Loop Infinito
+//
 //***************************************************************************************************************************************
 void loop() {
-  // INICIAZLIZACION DEL MENU
-  while (banderaPantalla == 0 & banderaInGame == 0) {
+
+  while (banderaPantalla == 0 & !inGame) {
     LCD_Clear(0x00);
     Serial.println("Iniciando Juego");
     myFile = SD.open("menu.txt"); // extraemos la imagen del menu de la SD
@@ -181,31 +191,32 @@ void loop() {
     LCD_Bitmap(88, 128, 8, 8, martillito); // colocamos el martillito en opcion 1 Jugador
     FillRect(88, 144, 8, 8, 0x00);
     Rect(108, 125, 110, 13, 0xf5e49c);
-    
-    banderaPantalla = 1; // seteamos banderaPantalla para entrar a la eleccion de juego
-    banderaUnJugador = 0;
-    banderaDosJugador = 0;
+
+    banderaPantalla = 1;
     banderaMartillito = 0;
-    banderaInGame = 0;
-    Serial.println("Menu completado");
+    unJugador = false;
+    dosJugador = false;
+    inGame = false;
   }
 
-//***************************************************************************************************************************************
-// MENU
-//***************************************************************************************************************************************
+  //***************************************************************************************************************************************
+  //
+  // MENU
+  //
+  //***************************************************************************************************************************************
 
-  while (banderaPantalla == 1 & banderaInGame == 0)  
+  while (banderaPantalla == 1 & !inGame)
   {
     inByte = 0; // quitamos valor de inByte
-    if (Serial5.available()) 
+    if (Serial5.available())
     {
       inByte = Serial5.read();
       Serial.println(inByte);
-      
-// ---------------------------------------------------------------------
-// Subir de opcion 
-// ---------------------------------------------------------------------
-      if (inByte == 10 & banderaInGame == 0) { 
+
+      // ---------------------------------------------------------------------
+      // Subir de opcion
+      // ---------------------------------------------------------------------
+      if (inByte == 10 & !inGame) {
         LCD_Bitmap(88, 128, 8, 8, martillito);
         FillRect(88, 144, 8, 8, 0x00);
         Rect(108, 125, 110, 13, 0xf5e49c);
@@ -214,10 +225,10 @@ void loop() {
         Serial.println("En opcion: 1 player game");
       }
 
-// ---------------------------------------------------------------------
-// Bajar de opcion 
-// ---------------------------------------------------------------------
-      else if (inByte == 20 & banderaInGame == 0) {
+      // ---------------------------------------------------------------------
+      // Bajar de opcion
+      // ---------------------------------------------------------------------
+      else if (inByte == 20 & !inGame) {
         LCD_Bitmap(88, 144, 8, 8, martillito);
         FillRect(88, 128, 8, 8, 0x00);
         Rect(108, 140, 110, 14, 0xf5e49c);
@@ -226,257 +237,348 @@ void loop() {
         Serial.println("En opcion: 2 player gamer");
       }
 
-// ---------------------------------------------------------------------
-// Seleccionar juego en 1 jugador 
-// ---------------------------------------------------------------------
+      // ---------------------------------------------------------------------
+      // Seleccionar juego en 1 jugador
+      // ---------------------------------------------------------------------
 
-      if (inByte == 50 & banderaMartillito == 0 & banderaInGame == 0) {
+      if (inByte == 50 & banderaMartillito == 0 & !inGame) {
         Serial.println("Juego en 1 jugador");
         LCD_Clear(0x00);
-        banderaUnJugador = 1;
-        banderaDosJugador = 0;
+        modojuego = 1;
         banderaPantalla = 2;
         inByte = 0;
       }
 
-// ---------------------------------------------------------------------
-// Seleccionar juego en 2 jugadores 
-// ---------------------------------------------------------------------
-      if (inByte == 50 & banderaMartillito == 1 & banderaInGame == 0) {
+      // ---------------------------------------------------------------------
+      // Seleccionar juego en 2 jugadores
+      // ---------------------------------------------------------------------
+      if (inByte == 50 & banderaMartillito == 1 & !inGame) {
         Serial.println("Juego en 2 jugadores");
         LCD_Clear(0x00);
-        banderaUnJugador = 0;
-        banderaDosJugador = 1;
+        modojuego = 2;
         banderaPantalla = 2;
         inByte = 0;
       }
     }
   }
 
-//***************************************************************************************************************************************
-// JUEGOOOO
-//***************************************************************************************************************************************
+  //***************************************************************************************************************************************
+  //
+  // JUEGOOOO
+  //
+  //***************************************************************************************************************************************
 
-  while (banderaPantalla == 2  & banderaInGame == 0) // 1ra pantalla de juego
-  {
+  while (banderaPantalla == 2 & !inGame) {
     inByte = 0;
     myFile = SD.open("prueba2.txt"); // desplegamos la primera pantalla de juego
     mapSD();
-    banderaInGame = 1; // setemaos que estamos en un juego
+    inGame = true; // setemaos que estamos en un juego
     banderaPantalla = 3;  // cambiamos al juego
-    Serial.println(banderaUnJugador);
-    Serial.println(banderaDosJugador);
-    Serial.println(banderaInGame);
     Serial.println(banderaPantalla);
+    Serial.println(inGame);
+    Serial.println(modojuego);
   }
 
-
-  while (banderaPantalla == 3) // Pantalla de juego
+  while (block_position_x <= 248)
   {
-    if (inByte == 50) // se sale del juego y regresa al menu
-    { 
-      LCD_Clear(0x00);
-      banderaPantalla = 0;
-      banderaInGame = 0;
-    }
-
-// ---------------------------------------------------------------------
-// Despligue de enemigos 
-// ---------------------------------------------------------------------
-
-    for (int i = 0; i < 1; i++)
+    for (int i = 0; i < 5; i++)
     {
-      LCD_Sprite(enemigo_x[0], enemigo_y[0], Bird_width, Bird_height, Bird, 2, 1, 0, 1);
-    }
-
-    for (int i = 0; i < 1; i++)
-    {
-      LCD_Sprite(70, 152, iceman_width, iceman_height, iceman, 3, 1, 0, 1);
-    }
-    
-// ---------------------------------------------------------------------
-// Movimiento de enemigos 
-// ---------------------------------------------------------------------
-    if (enemies_move)
-    {
-      for (int i = 0; i < 1; i++) {
-        delay(50);
-        FillRect(enemigo_x[0] + Bird_width, enemigo_y[0], 2, 20, 0x000);
-        enemigo_x[0] -= 2;
-      }
-      if (enemigo_x[0] <= map_border_left + 10)
+      if (block_position_y[i] > 120)
       {
-        enemies_move = false;
-      }
-    } else
-    {
-      for (int i = 0; i < 1; i++)
-      {
-        delay(50);
-        FillRect(enemigo_x[0] - 2, enemigo_y[i], 2, 20, 0x000);
-        enemigo_x[0] += 2;
-      }
-      if (enemigo_x[0] >= map_border_right - 12) {
-        enemies_move = true;
+        LCD_Bitmap(block_position_x, block_position_y[i], 8, 8, block_green);
+        //int x_aleatorio = ((std::rand() % 24) + 64) * 8 + 64;
+        //LCD_Bitmap(x_aleatorio, block_random_y[i], 8, 4, rect_green);
+
+        set_blocks_green[set_blocks_x_index] = block_position_x;
+        // set_slabes_green[set_blocks_x_index] = x_aleatorio;
+        set_blocks_x_index++;
+
+      } else {
+        LCD_Bitmap(block_position_x, block_position_y[i], 8, 8, block_brown);
+        //int x_aleatorio = ((std::rand() % 24) + 64) * 8 + 64;
+        //LCD_Bitmap(x_aleatorio, block_random_y[i] - 3, 8, 4, rect_brown);
       }
     }
+    block_position_x += 8;
+  }
 
-// ---------------------------------------------------------------------
-// Desplegar bloques obstaculo 
-// ---------------------------------------------------------------------
-    while (block_position_x <= 248)
-    {
-      for (int i = 0; i < 4; i++)
-      {
-        if (block_position_y[i] > 120)
-        {
-          LCD_Bitmap(block_position_x, block_position_y[i], 8, 8, block_green);
+  //***************************************************************************************************************************************
+  //
+  // UN JUGADOR
+  //
+  //***************************************************************************************************************************************
+  while (banderaPantalla == 3 & inGame & modojuego == 1) {
 
-          int x_aleatorio = ((std::rand() % 24) + 64) * 8 + 64;
-          LCD_Bitmap(x_aleatorio, block_random_y[i], 8, 4, rect_green);
-        } else {
-          LCD_Bitmap(block_position_x, block_position_y[i], 8, 4, block_brown);
-
-          int x_aleatorio = ((std::rand() % 24) + 64) * 8 + 64;
-          LCD_Bitmap(x_aleatorio, block_random_y[i] - 3, 8, 4, rect_brown);
-        }
-      }
-      block_position_x += 8;
-    }
-
-// ---------------------------------------------------------------------
-// PERSONAJES 
-// ---------------------------------------------------------------------
+    LCD_Bitmap(IceClimber1_x, IceClimber1_y, IceClimber1_width, IceClimber1_height, iceclimber1);
     inByte = 0;
     if (Serial5.available())
     {
       inByte = Serial5.read();
+      Serial.println(inByte);
+      if (inByte == 50 && !jumping) {
+        jumping = true;
+        jumpHeight = IceClimber1_y - 62;
+      }
+      if (inByte == 30 && !walkingRight) {
+        walkingRight = true;
+      }
+      if (inByte == 40 && !walkingLeft) {
+        walkingLeft = true;
+      }
+    }
 
-// ---------------------------------------------------------------------
-// UN JUGADOR
-// ---------------------------------------------------------------------
-      if (banderaUnJugador == 1 & banderaInGame == 1 & banderaDosJugador == 0)
-      {
-        Serial.println(IceClimber1_x);
-        LCD_Bitmap(IceClimber1_x, IceClimber1_y, IceClimber1_width, IceClimber1_height, iceclimber1);
-        // MUEVE A LA IZQUIERDA
-        if (inByte == 40)
-        {
-          LimiteIzquierdaIC_1 = false;
-          if (LimiteDerechaIC_1 == false)
-          {
-            IceClimber1_x += 4;
-            if (IceClimber1_x >= 230)
-            {
-              LimiteDerechaIC_1 = true;
-            }
-          }
-          FillRect(IceClimber1_x - 4, IceClimber1_y, 4, IceClimber1_height, 0x000);
-          Serial.println(inByte);
+    bool onFloor = false;
+    for (int i = 0; i < 23; i++) {
+      if (IceClimber1_y + IceClimber1_height >= block_position_y[1] &&
+          IceClimber1_y + IceClimber1_height <= block_position_y[1] + 8 &&
+          IceClimber1_x + IceClimber1_width >= set_blocks_green[i] &&
+          IceClimber1_x <= set_blocks_green[i] + 8) {
+        map_floor = IceClimber1_y;
+        onFloor = true;
+      } else if (Collision(IceClimber1_x, IceClimber1_y, IceClimber1_width, IceClimber1_height, set_blocks_green[i], block_position_y[1], 8, 8)) {
+        set_blocks_green[i] = 0;
+        onAir = true;
+      }
+    }
+
+    // ---------------------------------------------------------------------
+    // Saltar
+    // ---------------------------------------------------------------------
+    if (jumping) {
+      if (onAir) {
+        if (IceClimber1_y < map_floor) {
+          IceClimber1_y++;
+          delay(10);
+        } else {
+          onAir = false;
+          jumping = false;
         }
-
-        // MUEVE A LA DERECHA
-        if (inByte == 30)
-        {
-          LimiteDerechaIC_1 = false;
-          if (LimiteIzquierdaIC_1 == false)
-          {
-            IceClimber1_x -= 4;
-            if (IceClimber1_x <= 73)
-            {
-              LimiteIzquierdaIC_1 = true;
-            }
-          }
-          FillRect(IceClimber1_x + IceClimber1_width, IceClimber1_y, 3, IceClimber1_height, 0x000);
-          Serial.println(inByte);
+      } else {
+        if (IceClimber1_y > jumpHeight) {
+          IceClimber1_y--;
+          delay(10);
+        } else {
+          onAir = true;
         }
       }
+      FillRect(IceClimber1_x, IceClimber1_y + IceClimber1_height, IceClimber1_width, 1, 0x000);
+      FillRect(IceClimber1_x, IceClimber1_y, IceClimber1_width, 1, 0x00);
+    }
 
-// ---------------------------------------------------------------------
-// DOS JUGADORES
-// ---------------------------------------------------------------------
-      if (banderaDosJugador == 1 & banderaInGame == 1 & banderaUnJugador == 0)
-      {
-        LCD_Bitmap(IceClimber1_x, IceClimber1_y, IceClimber1_width, IceClimber1_height, iceclimber1);
-        LCD_Bitmap(IceClimber2_x, IceClimber2_y, IceClimber2_width, IceClimber2_height, iceclimber2);
 
-        if (inByte == 40)
-        {
-          LimiteIzquierdaIC_1 = false;
-          if (LimiteDerechaIC_1 == false)
-          {
-            IceClimber1_x += 4;
-            if (IceClimber1_x >= 230)
-            {
-              LimiteDerechaIC_1 = true;
-            }
-          }
-          FillRect(IceClimber1_x - 4, IceClimber1_y, 4, IceClimber1_height, 0x000);
+    // ---------------------------------------------------------------------
+    // Caminar derecha
+    // ---------------------------------------------------------------------
+    if (walkingRight) {
+      LimiteDerechaIC_1 = false;
+      if (!LimiteIzquierdaIC_1) {
+        IceClimber1_x -= 4;
+        walkingRight = false;
+        if (IceClimber1_x <= 73) {
+          LimiteIzquierdaIC_1 = true;
+          walkingRight = false;
         }
-
-        if (inByte == 30)
-        {
-          LimiteDerechaIC_1 = false;
-          if (LimiteIzquierdaIC_1 == false)
-          {
-            IceClimber1_x -= 4;
-            if (IceClimber1_x <= 73)
-            {
-              LimiteIzquierdaIC_1 = true;
-            }
-          }
-          FillRect(IceClimber1_x + IceClimber1_width, IceClimber1_y, 3, IceClimber1_height, 0x000);
-        }
-
-        if (inByte == 10)
-        {
-          LimiteIzquierdaIC_2 = false;
-          if (LimiteDerechaIC_2 == false)
-          {
-            IceClimber2_x += 4;
-            if (IceClimber2_x >= 230)
-            {
-              LimiteDerechaIC_2 = true;
-            }
-          }
-          FillRect(IceClimber2_x - 4, IceClimber2_y, 4, IceClimber2_height, 0x000);
-        }
-
-        if (inByte == 20)
-        {
-          LimiteDerechaIC_2 = false;
-          if (LimiteIzquierdaIC_2 == false)
-          {
-            IceClimber2_x -= 4;
-            if (IceClimber2_x <= 73)
-            {
-              LimiteIzquierdaIC_2 = true;
-            }
-          }
-          FillRect(IceClimber2_x + IceClimber2_width, IceClimber2_y, 3, IceClimber2_height, 0x000);
-        }
-
       }
+      FillRect(IceClimber1_x + IceClimber1_width, IceClimber1_y, 3, IceClimber1_height, 0x000);
+    }
+
+    // ---------------------------------------------------------------------
+    // Caminar izquierda
+    // ---------------------------------------------------------------------
+    if (walkingLeft) {
+      LimiteIzquierdaIC_1 = false;
+      if (LimiteDerechaIC_1 == false) {
+        IceClimber1_x += 4;
+        walkingLeft = false;
+        if (IceClimber1_x >= 230) {
+          LimiteDerechaIC_1 = true;
+          walkingLeft = false;
+        }
+      }
+      FillRect(IceClimber1_x - 4, IceClimber1_y, 4, IceClimber1_height, 0x000);
     }
   }
 
+  //***************************************************************************************************************************************
+  //
+  // DOS JUGADORES
+  //
+  //***************************************************************************************************************************************
+
+  while (banderaPantalla == 3 & inGame & modojuego == 2) {
+    LCD_Bitmap(IceClimber1_x, IceClimber1_y, IceClimber1_width, IceClimber1_height, iceclimber1);
+    LCD_Bitmap(IceClimber2_x, IceClimber2_y, IceClimber2_width, IceClimber2_height, iceclimber2);
+    inByte = 0;
+
+    if (Serial5.available())
+    {
+      inByte = Serial5.read();
+      Serial.println(inByte);
+      if (inByte == 50 && !jumping) {
+        jumping = true;
+        jumpHeight = IceClimber1_y - 62;
+      }
+      if (inByte == 60 && !jumping2) {
+        jumping2 = true;
+        jumpHeight2 = IceClimber2_y - 62;
+      }
+      if (inByte == 30 && !walkingRight) {
+        walkingRight = true;
+      }
+      if (inByte == 40 && !walkingLeft) {
+        walkingLeft = true;
+      }
+      if (inByte == 10 && !walkingLeft2) {
+        walkingLeft2 = true;
+      }
+      if (inByte == 20 && !walkingRight2) {
+        walkingRight2 = true;
+      }
+    }
+
+    bool onFloor = false;
+    bool onFloor2 = false;
+    for (int i = 0; i < 23; i++) {
+      if (IceClimber1_y + IceClimber1_height >= block_position_y[1] &&
+          IceClimber1_y + IceClimber1_height <= block_position_y[1] + 8 &&
+          IceClimber1_x + IceClimber1_width >= set_blocks_green[i] &&
+          IceClimber1_x <= set_blocks_green[i] + 8) {
+        map_floor = IceClimber1_y;
+        onFloor = true;
+      } else if (Collision(IceClimber1_x, IceClimber1_y, IceClimber1_width, IceClimber1_height, set_blocks_green[i], block_position_y[1], 8, 8)) {
+        set_blocks_green[i] = 0;
+        onAir = true;
+      }
+    }
+
+    for (int i = 0; i < 23; i++) {
+      if (IceClimber2_y + IceClimber2_height >= block_position_y[1] &&
+          IceClimber2_y + IceClimber2_height <= block_position_y[1] + 8 &&
+          IceClimber2_x + IceClimber2_width >= set_blocks_green[i] &&
+          IceClimber2_x <= set_blocks_green[i] + 8) {
+        map_floor2 = IceClimber2_y;
+        onFloor2 = true;
+      } else if (Collision(IceClimber2_x, IceClimber2_y, IceClimber2_width, IceClimber2_height, set_blocks_green[i], block_position_y[1], 8, 8)) {
+        set_blocks_green[i] = 0;
+        onAir2 = true;
+      }
+    }
+
+
+    // ---------------------------------------------------------------------
+    // Saltar 1
+    // ---------------------------------------------------------------------
+    if (jumping) {
+      if (onAir) {
+        if (IceClimber1_y < map_floor) {
+          IceClimber1_y++;
+          delay(10);
+        } else {
+          onAir = false;
+          jumping = false;
+        }
+      } else {
+        if (IceClimber1_y > jumpHeight) {
+          IceClimber1_y--;
+          delay(10);
+        } else {
+          onAir = true;
+        }
+      }
+      FillRect(IceClimber1_x, IceClimber1_y + IceClimber1_height, IceClimber1_width, 1, 0x000);
+      FillRect(IceClimber1_x, IceClimber1_y, IceClimber1_width, 1, 0x00);
+    }
+
+    // ---------------------------------------------------------------------
+    // Saltar 2
+    // ---------------------------------------------------------------------
+    if (jumping2) {
+      if (onAir2) {
+        if (IceClimber2_y < map_floor2) {
+          IceClimber2_y++;
+          delay(10);
+        } else {
+          onAir2 = false;
+          jumping2 = false;
+        }
+      } else {
+        if (IceClimber2_y > jumpHeight2) {
+          IceClimber2_y--;
+          delay(10);
+        } else {
+          onAir2 = true;
+        }
+      }
+      FillRect(IceClimber2_x, IceClimber2_y + IceClimber2_height, IceClimber2_width, 1, 0x000);
+      FillRect(IceClimber2_x, IceClimber2_y, IceClimber2_width, 1, 0x00);
+    }
+
+    // ---------------------------------------------------------------------
+    // caminar derecha 1
+    // ---------------------------------------------------------------------
+    if (walkingRight) {
+      LimiteDerechaIC_1 = false;
+      if (!LimiteIzquierdaIC_1) {
+        IceClimber1_x -= 4;
+        walkingRight = false;
+        if (IceClimber1_x <= 73) {
+          LimiteIzquierdaIC_1 = true;
+          walkingRight = false;
+        }
+      }
+      FillRect(IceClimber1_x + IceClimber1_width, IceClimber1_y, 3, IceClimber1_height, 0x000);
+    }
+    
+    //----------------------------------------------------------------------
+    // caminar derecha 2
+    // ---------------------------------------------------------------------
+    if (walkingRight2) {
+      LimiteDerechaIC_2 = false;
+      if (!LimiteIzquierdaIC_2) {
+        IceClimber2_x -= 4;
+        walkingRight2 = false;
+        if (IceClimber2_x <= 73) {
+          LimiteIzquierdaIC_2 = true;
+          walkingRight2 = false;
+        }
+      }
+      FillRect(IceClimber2_x + IceClimber2_width, IceClimber2_y, 3, IceClimber2_height, 0x000);
+    }
+
+    // ---------------------------------------------------------------------
+    // caminar izquierda 1
+    // ---------------------------------------------------------------------
+    if (walkingLeft) {
+      LimiteIzquierdaIC_1 = false;
+      if (LimiteDerechaIC_1 == false) {
+        IceClimber1_x += 4;
+        walkingLeft = false;
+        if (IceClimber1_x >= 230) {
+          LimiteDerechaIC_1 = true;
+          walkingLeft = false;
+        }
+      }
+      FillRect(IceClimber1_x - 4, IceClimber1_y, 4, IceClimber1_height, 0x000);
+    }
+
+    // ---------------------------------------------------------------------
+    // caminar izquierda 2
+    // ---------------------------------------------------------------------
+    if (walkingLeft2) {
+      LimiteIzquierdaIC_2 = false;
+      if (LimiteDerechaIC_2 == false) {
+        IceClimber2_x += 4;
+        walkingLeft2 = false;
+        if (IceClimber2_x >= 230) {
+          LimiteDerechaIC_2 = true;
+          walkingLeft2 = false;
+        }
+      }
+      FillRect(IceClimber2_x - 4, IceClimber2_y, 4, IceClimber2_height, 0x000);
+    }
+    
+  }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 //***************************************************************************************************************************************
 // Funciones para proyecto
